@@ -17,7 +17,6 @@
  */
 package fr.insideapp.sonarqube.dart.lang.issues.dartanalyzer.executable;
 
-import com.google.common.io.Resources;
 import com.vdurmont.semver4j.Semver;
 import fr.insideapp.sonarqube.dart.lang.PubSpec;
 import fr.insideapp.sonarqube.dart.lang.issues.dartanalyzer.AnalyzerOutput;
@@ -25,16 +24,17 @@ import fr.insideapp.sonarqube.dart.lang.issues.dartanalyzer.DartAnalyzerSensor;
 import org.buildobjects.process.ProcBuilder;
 import org.buildobjects.process.ProcResult;
 import org.sonar.api.batch.sensor.SensorContext;
-import org.sonar.api.utils.log.Logger;
-import org.sonar.api.utils.log.Loggers;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import javax.annotation.Nonnull;
 import javax.annotation.ParametersAreNonnullByDefault;
 import java.io.File;
 import java.io.IOException;
-import java.net.URL;
+import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.nio.file.StandardCopyOption;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -50,7 +50,7 @@ public abstract class AnalyzerExecutable {
         public static final Mode defaultMode = DETECT;
     }
 
-    protected static final Logger LOGGER = Loggers.get(AnalyzerExecutable.class);
+    protected static final Logger LOGGER = LoggerFactory.getLogger(AnalyzerExecutable.class);
 
     private static final int ANALYZER_TIMEOUT = 10 * 60 * 1000;
     private static final String ANALYSIS_OPTIONS_FILENAME = "analysis_options.yaml";
@@ -90,7 +90,7 @@ public abstract class AnalyzerExecutable {
             LOGGER.info("Command '{}' finished (exit {})", result.getProcString(), result.getExitValue());
             maybeThrowException(result);
 
-            return new AnalyzerOutput(outputMode, getMode(), result.getOutputString());
+            return new AnalyzerOutput(outputMode, getMode(), result.getOutputString(), result.getExitValue());
         } finally {
             if (optionsCreated) {
                 restoreAnalysisOptionsFile(sensorContext);
@@ -126,25 +126,29 @@ public abstract class AnalyzerExecutable {
         return sensorContext.fileSystem().resolvePath(ANALYSIS_OPTIONS_FILENAME).exists();
     }
 
-    private void saveCurrentAnalysisOptionsFile(SensorContext sensorContext) {
+    private void saveCurrentAnalysisOptionsFile(SensorContext sensorContext) throws IOException {
         File analysisOptionsFile = sensorContext.fileSystem().resolvePath(ANALYSIS_OPTIONS_FILENAME);
         String backup = ANALYSIS_OPTIONS_FILENAME + ".sonar";
-        if (analysisOptionsFile.renameTo(sensorContext.fileSystem().resolvePath(backup))) {
-            LOGGER.info("Backup of original {} file to {}", ANALYSIS_OPTIONS_FILENAME, backup);
-        }
+        // Files.move rather than File.renameTo, which cannot replace an existing file on Windows
+        Files.move(analysisOptionsFile.toPath(), sensorContext.fileSystem().resolvePath(backup).toPath(), StandardCopyOption.REPLACE_EXISTING);
+        LOGGER.info("Backup of original {} file to {}", ANALYSIS_OPTIONS_FILENAME, backup);
     }
 
     private void createAnalysisOptionsFile(SensorContext sensorContext) throws IOException {
         File analysisOptionsFile = sensorContext.fileSystem().resolvePath(ANALYSIS_OPTIONS_FILENAME);
-        URL inputUrl = DartAnalyzerSensor.class.getResource(ANALYSIS_OPTIONS_FILE);
-        assert inputUrl != null;
-        Resources.asByteSource(inputUrl).copyTo(com.google.common.io.Files.asByteSink(analysisOptionsFile));
+        try (InputStream inputStream = DartAnalyzerSensor.class.getResourceAsStream(ANALYSIS_OPTIONS_FILE)) {
+            if (inputStream == null) {
+                throw new IOException("Analysis options resource not found: " + ANALYSIS_OPTIONS_FILE);
+            }
+            Files.copy(inputStream, analysisOptionsFile.toPath(), StandardCopyOption.REPLACE_EXISTING);
+        }
     }
 
     private void restoreAnalysisOptionsFile(SensorContext sensorContext) throws IOException {
         File analysisOptionsFile = sensorContext.fileSystem().resolvePath(ANALYSIS_OPTIONS_FILENAME);
         File backupAnalysisOptionsFile = sensorContext.fileSystem().resolvePath(ANALYSIS_OPTIONS_FILENAME + ".sonar");
-        if (backupAnalysisOptionsFile.exists() && backupAnalysisOptionsFile.renameTo(analysisOptionsFile)) {
+        if (backupAnalysisOptionsFile.exists()) {
+            Files.move(backupAnalysisOptionsFile.toPath(), analysisOptionsFile.toPath(), StandardCopyOption.REPLACE_EXISTING);
             LOGGER.info("Restored original {} file", ANALYSIS_OPTIONS_FILENAME);
         } else {
             Files.delete(analysisOptionsFile.toPath());

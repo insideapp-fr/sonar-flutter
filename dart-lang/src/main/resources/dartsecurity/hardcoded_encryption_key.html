@@ -1,0 +1,6 @@
+<p>Cryptographic keys and initialization vectors that are hardcoded in the source code can be extracted from the application binary, defeating the encryption entirely. A well-known example is an app that shipped with the key <code>"PRODKEYPRODKEY12"</code> embedded in its code.</p>
+<h2>Ask Yourself Whether</h2>
+<ul><li>The key or IV protects sensitive data.</li></ul>
+<h2>Recommended Secure Coding Practices</h2>
+<ul><li>Derive keys at runtime from a secret that is not stored in the source code.</li>
+<li>Store secrets in a secure storage (Keychain / Keystore) and use a unique, random IV per operation.</li></ul>

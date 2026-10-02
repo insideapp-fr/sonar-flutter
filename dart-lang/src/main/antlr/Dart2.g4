@@ -36,7 +36,7 @@ compilationUnit: libraryDefinition | partDeclaration;
 
 WHITESPACE
 //  : ('\t' | ' ' | NEWLINE)+   -> skip
-  :  [ \t\r\n\u000C]+ -> skip
+  :  [ \t\r\n\u000C\uFEFF]+ -> skip
   ;
 
 // 8 Variables
@@ -48,9 +48,9 @@ declaredIdentifier
   : metadata finalConstVarOrType identifier
   ;
 finalConstVarOrType
-  : 'final' dtype?
+  : 'late'? 'final' dtype?
   | 'const' dtype?
-  | varOrType
+  | 'late'? varOrType
   ;
 varOrType
   : 'var'
@@ -93,8 +93,7 @@ block
 // 9.2 Formal Parameters
 formalParameterList
   : '(' ')'
-  | '(' normalFormalParameters ')'
-  | '(' normalFormalParameters (',' optionalFormalParameters)? ')'
+  | '(' normalFormalParameters (',' optionalFormalParameters)? ','? ')'
   | '(' optionalFormalParameters ')'
   ;
 normalFormalParameters
@@ -115,14 +114,19 @@ namedFormalParameters
 normalFormalParameter
   : functionFormalParameter
   | fieldFormalParameter
+  | superFormalParameter
   | simpleFormalParameter
+  ;
+superFormalParameter
+  : metadata finalConstVarOrType? 'super' '.' identifier formalParameterPart?
   ;
 functionFormalParameter
   : metadata 'covariant'? returnType? identifier formalParameterPart
   ;
 simpleFormalParameter
-  : declaredIdentifier
+  : metadata 'covariant'? finalConstVarOrType identifier
   | metadata 'covariant'? identifier
+  | metadata dtype
   ;
 fieldFormalParameter
   : metadata finalConstVarOrType? 'this' '.' identifier formalParameterPart?
@@ -133,13 +137,23 @@ defaultFormalParameter
   : normalFormalParameter ('=' expression)?
   ;
 defaultNamedParameter
-  : normalFormalParameter ('=' expression)?
-  | normalFormalParameter (':' expression)?
+  : metadata 'required'? normalFormalParameter ('=' expression)?
+  | metadata 'required'? normalFormalParameter (':' expression)?
   ;
 
-// 10 Classes
+// 10 Classes (updated for Dart 3 class modifiers)
+classModifier
+  : 'sealed'
+  | 'base'
+  | 'final'
+  | 'interface'
+  | 'mixin'
+  ;
 classDefinition
-  : metadata 'abstract'? 'class' identifier typeParameters?
+  : metadata classModifier* 'abstract'? 'class' identifier typeParameters?
+    superclass? mixins? interfaces?
+    '{' (metadata classMemberDefinition)* '}'
+  | metadata 'abstract'? classModifier* 'class' identifier typeParameters?
     superclass? mixins? interfaces?
     '{' (metadata classMemberDefinition)* '}'
   | metadata 'abstract'? 'class' mixinApplicationClass
@@ -162,7 +176,8 @@ methodSignature
 
 
 declaration
-  : constantConstructorSignature (redirection | initializers)?
+  : redirectingFactoryConstructorSignature
+  | constantConstructorSignature (redirection | initializers)?
   | constructorSignature (redirection | initializers)?
   | 'external' constantConstructorSignature
   | 'external' constructorSignature
@@ -170,9 +185,9 @@ declaration
   | ('external' 'static'?)? setterSignature
   | 'external'? operatorSignature
   | ('external' 'static'?)? functionSignature
-  | 'static' ('final' | 'const') dtype? staticFinalDeclarationList
-  | 'final' dtype? initializedIdentifierList
-  | ('static' | 'covariant')? ('var' | dtype) initializedIdentifierList
+  | 'static' 'late'? ('final' | 'const') dtype? staticFinalDeclarationList
+  | 'late'? 'final' dtype? initializedIdentifierList
+  | ('static' | 'covariant')? 'late'? ('var' | dtype) initializedIdentifierList
   ;
 
 staticFinalDeclarationList
@@ -186,8 +201,10 @@ staticFinalDeclaration
 operatorSignature
   : returnType? 'operator' operator formalParameterList
   ;
+// '[]' and '[]=' are composed of single tokens at the parser level so that
+// empty list literals like [] and const [] can be lexed properly.
 operator
-  : '~' | binaryOperator | '[]' | '[]='
+  : '~' | binaryOperator | '[' ']' '=' | '[' ']'
   ;
 
 binaryOperator
@@ -254,12 +271,12 @@ mixinApplication
 
 // 13 Enums
 enumType
-  : metadata 'enum' identifier
-    '{' enumEntry (',' enumEntry)* ','? '}'
+  : metadata 'enum' identifier typeParameters? mixins? interfaces?
+    '{' enumEntry (',' enumEntry)* ','? (';' (metadata classMemberDefinition)*)? '}'
   ;
 
 enumEntry
-  : metadata identifier
+  : metadata identifier ('.' identifier)? argumentPart?
   ;
 
 // 14 Generics
@@ -294,10 +311,134 @@ primary
   | 'super' unconditionalAssignableSelector
   | functionExpression
   | literal
+  | constructorInvocation
   | identifier
   | nayaExpression
   | constObjectExpression
+  | recordLiteral
+  | switchExpression
   | '(' expression ')'
+  ;
+
+// Generic constructor invocation, e.g. List<int>.filled(3, 0)
+constructorInvocation
+  : typeName typeArguments '.' (identifier | 'new') arguments
+  ;
+
+// Dart 3 Records
+recordLiteral
+  : 'const'? '(' ')'
+  | 'const'? '(' recordField ',' ')'
+  | 'const'? '(' recordField (',' recordField)+ ','? ')'
+  | 'const'? '(' identifier ':' expression ','? ')'
+  ;
+recordField
+  : (identifier ':')? expression
+  ;
+recordType
+  : '(' ')'
+  | '(' recordTypeFields ','? ')'
+  | '(' recordTypeFields ',' recordTypeNamedFields ')'
+  | '(' recordTypeNamedFields ')'
+  ;
+recordTypeFields
+  : recordTypeField (',' recordTypeField)*
+  ;
+recordTypeField
+  : metadata dtype identifier?
+  ;
+recordTypeNamedFields
+  : '{' recordTypeNamedField (',' recordTypeNamedField)* ','? '}'
+  ;
+recordTypeNamedField
+  : metadata dtype identifier
+  ;
+
+// Dart 3 Switch Expressions
+switchExpression
+  : 'switch' '(' expression ')' '{' switchExpressionCase (',' switchExpressionCase)* ','? '}'
+  ;
+switchExpressionCase
+  : guardedPattern '=>' expression
+  ;
+guardedPattern
+  : pattern ('when' expression)?
+  ;
+pattern
+  : logicalOrPattern
+  ;
+logicalOrPattern
+  : logicalAndPattern ('||' logicalAndPattern)*
+  ;
+logicalAndPattern
+  : unaryPattern ('&&' unaryPattern)*
+  ;
+unaryPattern
+  : relationalPattern
+  | primaryPattern ('?' | '!' | 'as' dtype)?
+  ;
+relationalPattern
+  : (equalityOperator | relationalOperator) bitwiseOrExpression
+  ;
+primaryPattern
+  : listPattern
+  | mapPattern
+  | recordPattern
+  | variablePattern
+  | objectPattern
+  | typeTestPattern
+  | wildcardPattern
+  | constantPattern
+  ;
+constantPattern
+  : literal
+  | identifier
+  | qualified
+  | constObjectExpression
+  ;
+typeTestPattern
+  : dtype identifier
+  ;
+wildcardPattern
+  : '_'
+  ;
+variablePattern
+  : ('var' | 'final' dtype? ) identifier
+  ;
+listPattern
+  : typeArguments? '[' (listPatternElement (',' listPatternElement)* ','?)? ']'
+  ;
+listPatternElement
+  : pattern
+  | restPattern
+  ;
+restPattern
+  : '...' pattern?
+  ;
+mapPattern
+  : typeArguments? '{' (mapPatternEntry (',' mapPatternEntry)* ','?)? '}'
+  ;
+mapPatternEntry
+  : expression ':' pattern
+  | '...'
+  ;
+recordPattern
+  : '(' (patternField (',' patternField)* ','?)? ')'
+  ;
+patternField
+  : (identifier? ':')? pattern
+  ;
+objectPattern
+  : typeName typeArguments? '(' (patternField (',' patternField)* ','?)? ')'
+  ;
+outerPattern
+  : recordPattern
+  | listPattern
+  | mapPattern
+  | objectPattern
+  ;
+patternVariableDeclaration
+  : ('final' | 'var') outerPattern '=' expression
   ;
 
 // 16.1 Constants
@@ -351,18 +492,29 @@ SingleLineString
   | 'r"' (~('"' | '\n' | '\r'))* '"'
   ;
 
+// Balanced ${...} interpolation blocks are consumed inside string tokens so
+// that quotes nested in interpolations (e.g. '${DateFormat('dd')}') do not
+// terminate the surrounding string.
+// Newlines are allowed inside ${...} even in single-line strings.
+fragment
+EMBEDDED_EXPR
+  : '${' (EMBEDDED_EXPR | ~[{}])* '}'
+  ;
+
 fragment
 StringContentDQ
-  : ~('\\' | '"' /*| '$'*/ | '\n' | '\r')
+  : ~('\\' | '"' | '$' | '\n' | '\r')
   | '\\' ~('\n' | '\r')
-  //| stringInterpolation
+  | EMBEDDED_EXPR
+  | '$'
   ;
 
 fragment
 StringContentSQ
-  : ~('\\' | '\'' /*| '$'*/ | '\n' | '\r')
+  : ~('\\' | '\'' | '$' | '\n' | '\r')
   | '\\' ~('\n' | '\r')
-  //| stringInterpolation
+  | EMBEDDED_EXPR
+  | '$'
   ;
 
 MultiLineString
@@ -374,15 +526,17 @@ MultiLineString
 
 fragment
 StringContentTDQ
-  : ~('\\' | '"' /*| '$'*/)
+  : ~('\\' | '"' | '$')
   | '"' ~'"' | '""' ~'"'
-  //| stringInterpolation
+  | EMBEDDED_EXPR
+  | '$'
   ;
 
 fragment StringContentTSQ
-  : ~('\\' | '\'' /*| '$'*/)
+  : ~('\\' | '\'' | '$')
   | '\'' ~'\'' | '\'\'' ~'\''
-  //| stringInterpolation
+  | EMBEDDED_EXPR
+  | '$'
   ;
 
 NEWLINE
@@ -404,16 +558,36 @@ symbolLiteral
   ;
 // 16.7 Lists
 listLiteral
-  : 'const'? typeArguments? '[' (expressionList ','?)? ']'
+  : 'const'? typeArguments? '[' elements? ']'
   ;
 
-// 16.8 Maps
+// 16.8 Maps and Sets
 mapLiteral
-  : 'const'? typeArguments?
-    '{' (mapLiteralEntry (',' mapLiteralEntry)* ','?)? '}'
+  : 'const'? typeArguments? '{' elements? '}'
 ;
 mapLiteralEntry
   : expression ':' expression
+  ;
+
+// Collection elements (spread, if, for - Dart 2.3+)
+elements
+  : element (',' element)* ','?
+  ;
+element
+  : mapLiteralEntry
+  | spreadElement
+  | ifElement
+  | forElement
+  | expression
+  ;
+spreadElement
+  : ('...' | '...?') expression
+  ;
+ifElement
+  : 'if' '(' expression ('case' guardedPattern)? ')' element ('else' element)?
+  ;
+forElement
+  : 'await'? 'for' '(' forLoopParts ')' element
   ;
 
 // 16.9 Throw
@@ -426,7 +600,11 @@ throwExpressionWithoutCascade
 
 // 16.10 Function Expressions
 functionExpression
-  : formalParameterPart functionBody
+  : formalParameterPart functionExpressionBody
+  ;
+functionExpressionBody
+  : 'async'? '=>' expression
+  | ('async' | 'async*' | 'sync*')? block
   ;
 
 // 16.11 This
@@ -456,7 +634,7 @@ namedArgument
 
 // 16.18.2 Cascaded Invocations
 cascadeSection
-  : '..' (cascadeSelector argumentPart*)
+  : ('..' | '?..') (cascadeSelector argumentPart*)
          (assignableSelector argumentPart*)*
          (assignmentOperator expressionWithoutCascade)?
   ;
@@ -559,10 +737,12 @@ shiftExpression
   : additiveExpression (shiftOperator additiveExpression)*
   | 'super' (shiftOperator additiveExpression)+
   ;
+// '>>' and '>>>' are composed of single '>' tokens at the parser level so
+// that nested type arguments like List<List<int>> can close properly.
 shiftOperator
   : '<<'
-  | '>>'
-  | '>>>'
+  | '>' '>' '>'
+  | '>' '>'
   ;
 
 // 16.28 Additive Expression
@@ -617,7 +797,8 @@ postfixOperator
   : incrementOperator
   ;
 selector
-  : assignableSelector
+  : '!'
+  | assignableSelector
   | argumentPart
   ;
 
@@ -626,23 +807,33 @@ incrementOperator
   | '--'
   ;
 // 16.33 Assignable Expressions
-// NOTE
-// primary (argumentPart* assignableSelector)+ -> primary (argumentPart* assignableSelector)?
 assignableExpression
-  : primary (argumentPart* assignableSelector)?
-  | 'super' unconditionalAssignableSelector identifier
+  : primary (argumentPart* assignableSelector)+
+  | identifier
+  | 'super' unconditionalAssignableSelector
   ;
 unconditionalAssignableSelector
   : '[' expression ']'
   | '.' identifier
+  | '.' 'new'
   ;
 assignableSelector
   : unconditionalAssignableSelector
   | '?.' identifier
+  | '?' '[' expression ']'
   ;
 
 identifier
   : IDENTIFIER
+  // Built-in identifiers and contextual keywords are still usable as plain
+  // identifiers in Dart (e.g. http.get, Theme.of, mocktail's when).
+  | 'abstract' | 'as' | 'covariant' | 'deferred' | 'export' | 'external'
+  | 'factory' | 'Function' | 'get' | 'implements' | 'import' | 'interface'
+  | 'late' | 'library' | 'mixin' | 'operator' | 'part' | 'required'
+  | 'sealed' | 'set' | 'static' | 'typedef' | 'base' | 'when'
+  | 'async' | 'hide' | 'of' | 'on' | 'show'
+  | 'extension' | 'type'
+  | '_'
   ;
 qualified
   : identifier ('.' identifier)?
@@ -697,14 +888,16 @@ expressionStatement
 // 17.3 Local Variable Declaration
 localVariableDeclaration
   : initializedVariableDeclaration ';'
+  | patternVariableDeclaration ';'
   ;
 // 17.4 Local Function Declaration
 localFunctionDeclaration
   : functionSignature functionBody
   ;
-// 17.5 If
+// 17.5 If (updated for Dart 3 if-case)
 ifStatement
   : 'if' '(' expression ')' statement ('else' statement)?
+  | 'if' '(' expression 'case' pattern ('when' expression)? ')' statement ('else' statement)?
   ;
 
 // 17.6 For for
@@ -715,6 +908,7 @@ forLoopParts
   : forInitializerStatement expression? ';' expressionList?
   | declaredIdentifier 'in' expression
   | identifier 'in' expression
+  | ('final' | 'var') outerPattern 'in' expression
   ;
 forInitializerStatement
   : localVariableDeclaration
@@ -730,12 +924,12 @@ whileStatement
 doStatement
   : 'do' statement 'while' '(' expression ')' ';'
   ;
-// 17.9 Switch
+// 17.9 Switch (updated for Dart 3 patterns and when guards)
 switchStatement
   : 'switch'  '(' expression ')' '{' switchCase* defaultCase? '}'
   ;
 switchCase
-  : label* 'case' expression ':' statements
+  : label* 'case' guardedPattern ':' statements
   ;
 defaultCase
   : label* 'default' ':' statements
@@ -802,6 +996,9 @@ assertion
 // 18 Libraries and Scripts
 topLevelDefinition
   : classDefinition
+  | mixinDeclaration
+  | extensionTypeDeclaration
+  | extensionDeclaration
   | enumType
   | typeAlias
   | 'external'? functionSignature ';'
@@ -810,8 +1007,28 @@ topLevelDefinition
   | functionSignature functionBody
   | returnType? 'get' identifier functionBody
   | returnType? 'set' identifier formalParameterList functionBody
-  | ('final' | 'const') dtype? staticFinalDeclarationList ';'
-  | variableDeclaration ';'
+  | ('late'? 'final' | 'const') dtype? staticFinalDeclarationList ';'
+  | initializedVariableDeclaration ';'
+  | patternVariableDeclaration ';'
+  ;
+
+// 12 Mixin Declaration (Dart 2.1+)
+mixinDeclaration
+  : metadata 'base'? 'mixin' identifier typeParameters? ('on' typeList)? interfaces?
+    '{' (metadata classMemberDefinition)* '}'
+  ;
+
+// Extension Declaration (Dart 2.7+)
+extensionDeclaration
+  : metadata 'extension' identifier? typeParameters? 'on' dtype
+    '{' (metadata classMemberDefinition)* '}'
+  ;
+
+// Extension Types (Dart 3.3+)
+extensionTypeDeclaration
+  : metadata 'extension' 'type' 'const'? identifier typeParameters?
+    '(' dtype identifier ')' interfaces?
+    '{' (metadata classMemberDefinition)* '}'
   ;
 getOrSet
   : 'get'
@@ -841,8 +1058,7 @@ libraryimport
   ;
 
 importSpecification
-  : 'import' configurableUri ('as' identifier)? combinator* ';'
-//  | 'import' uri 'deferred' 'as' identifier combinator* ';'
+  : 'import' configurableUri ('deferred'? 'as' identifier)? combinator* ';'
   ;
 
 combinator
@@ -863,7 +1079,7 @@ partDirective
   : metadata 'part' uri ';'
   ;
 partHeader
-  : metadata 'part' 'of' identifier ('.' identifier)* ';'
+  : metadata 'part' 'of' (identifier ('.' identifier)* | uri) ';'
   ;
 partDeclaration
   : partHeader topLevelDefinition* EOF
@@ -885,7 +1101,8 @@ uriTest
 
 // 19.1 Static Types
 dtype
-  : typeName typeArguments?
+  : (typeName typeArguments? | recordType) '?'? ('Function' typeParameters? formalParameterList '?'?)*
+  | ('Function' typeParameters? formalParameterList '?'?)+
   ;
 typeName
   : qualified
@@ -904,6 +1121,7 @@ typeAlias
   ;
 typeAliasBody
   : functionTypeAlias
+  | identifier typeParameters? '=' dtype ';'
   ;
 functionTypeAlias
   : functionPrefix typeParameters? formalParameterList ';'

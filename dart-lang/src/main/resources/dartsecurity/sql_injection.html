@@ -1,0 +1,7 @@
+<p>Building SQL queries by concatenating or interpolating untrusted data lets an attacker alter the query and read, modify or delete arbitrary data (SQL injection).</p>
+<h2>Noncompliant Code Example</h2>
+<pre>db.rawQuery('SELECT * FROM users WHERE id = $userId');</pre>
+<h2>Compliant Solution</h2>
+<pre>db.rawQuery('SELECT * FROM users WHERE id = ?', [userId]);</pre>
+<h2>See</h2>
+<ul><li>CWE-89 - Improper Neutralization of Special Elements used in an SQL Command</li></ul>

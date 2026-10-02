@@ -1,0 +1,7 @@
+<p>Building an operating-system command from untrusted data lets an attacker execute arbitrary commands on the device (command injection).</p>
+<h2>Noncompliant Code Example</h2>
+<pre>Process.run('sh', ['-c', 'ls $path']);</pre>
+<h2>Compliant Solution</h2>
+<pre>Process.run('ls', [path]); // arguments passed as a list, not interpolated into a shell string</pre>
+<h2>See</h2>
+<ul><li>CWE-78 - Improper Neutralization of Special Elements used in an OS Command</li></ul>

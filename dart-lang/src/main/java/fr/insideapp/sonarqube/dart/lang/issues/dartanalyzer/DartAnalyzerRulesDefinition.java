@@ -20,16 +20,19 @@ package fr.insideapp.sonarqube.dart.lang.issues.dartanalyzer;
 import fr.insideapp.sonarqube.dart.lang.Dart;
 import fr.insideapp.sonarqube.dart.lang.issues.RepositoryRule;
 import fr.insideapp.sonarqube.dart.lang.issues.RepositoryRuleParser;
+import org.sonar.api.issue.impact.Severity;
+import org.sonar.api.issue.impact.SoftwareQuality;
+import org.sonar.api.rules.CleanCodeAttribute;
 import org.sonar.api.rules.RuleType;
 import org.sonar.api.server.rule.RulesDefinition;
-import org.sonar.api.utils.log.Logger;
-import org.sonar.api.utils.log.Loggers;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.util.List;
 
 public class DartAnalyzerRulesDefinition implements RulesDefinition {
-    private static final Logger LOGGER = Loggers.get(DartAnalyzerRulesDefinition.class);
+    private static final Logger LOGGER = LoggerFactory.getLogger(DartAnalyzerRulesDefinition.class);
     public static final String REPOSITORY_KEY = "dartanalyzer";
     public static final String REPOSITORY_NAME = REPOSITORY_KEY;
     public static final String RULES_FILE = "/dartanalyzer/rules.json";
@@ -43,7 +46,7 @@ public class DartAnalyzerRulesDefinition implements RulesDefinition {
             List<RepositoryRule> rules = repositoryRuleParser.parse(RULES_FILE);
             for (RepositoryRule rule : rules) {
 
-                if ( rule.name == null || rule.severity == null || rule.type == null || rule.description == null) {
+                if (rule.name == null || rule.severity == null || rule.type == null || rule.description == null) {
                     LOGGER.warn(String.format("Cannot load %s rule from dartanalyzer, rule data is missing in rules.json", rule.key));
                 } else {
                     RulesDefinition.NewRule newRule = repository.createRule(rule.key)
@@ -53,13 +56,86 @@ public class DartAnalyzerRulesDefinition implements RulesDefinition {
                             .setActivatedByDefault(rule.active)
                             .setHtmlDescription(rule.description);
                     newRule.setDebtRemediationFunction(newRule.debtRemediationFunctions().constantPerIssue(rule.debt));
-                }
 
+                    // MQR Mode: Set clean code attribute
+                    if (rule.cleanCodeAttribute != null) {
+                        try {
+                            newRule.setCleanCodeAttribute(CleanCodeAttribute.valueOf(rule.cleanCodeAttribute));
+                        } catch (IllegalArgumentException e) {
+                            LOGGER.warn("Unknown CleanCodeAttribute '{}' for rule {}, using default", rule.cleanCodeAttribute, rule.key);
+                        }
+                    } else {
+                        // Default based on type
+                        newRule.setCleanCodeAttribute(mapTypeToCleanCodeAttribute(rule.type));
+                    }
+
+                    // MQR Mode: Set impacts
+                    if (rule.impacts != null && !rule.impacts.isEmpty()) {
+                        for (RepositoryRule.Impact impact : rule.impacts) {
+                            try {
+                                newRule.addDefaultImpact(
+                                        SoftwareQuality.valueOf(impact.softwareQuality),
+                                        Severity.valueOf(impact.severity)
+                                );
+                            } catch (IllegalArgumentException e) {
+                                LOGGER.warn("Invalid impact definition for rule {}: {} / {}", rule.key, impact.softwareQuality, impact.severity);
+                            }
+                        }
+                    } else {
+                        // Auto-map from legacy type/severity
+                        newRule.addDefaultImpact(
+                                mapTypeToSoftwareQuality(rule.type),
+                                mapSeverityToImpactSeverity(rule.severity)
+                        );
+                    }
+                }
             }
         } catch (IOException e) {
             LOGGER.error("Failed to load dartanalyzer rules", e);
         }
 
         repository.done();
+    }
+
+    private static CleanCodeAttribute mapTypeToCleanCodeAttribute(RepositoryRule.Type type) {
+        switch (type) {
+            case BUG:
+                return CleanCodeAttribute.LOGICAL;
+            case VULNERABILITY:
+            case SECURITY_HOTSPOT:
+                return CleanCodeAttribute.TRUSTWORTHY;
+            case CODE_SMELL:
+            default:
+                return CleanCodeAttribute.CONVENTIONAL;
+        }
+    }
+
+    private static SoftwareQuality mapTypeToSoftwareQuality(RepositoryRule.Type type) {
+        switch (type) {
+            case BUG:
+                return SoftwareQuality.RELIABILITY;
+            case VULNERABILITY:
+            case SECURITY_HOTSPOT:
+                return SoftwareQuality.SECURITY;
+            case CODE_SMELL:
+            default:
+                return SoftwareQuality.MAINTAINABILITY;
+        }
+    }
+
+    private static Severity mapSeverityToImpactSeverity(RepositoryRule.Severity severity) {
+        switch (severity) {
+            case BLOCKER:
+                return Severity.BLOCKER;
+            case CRITICAL:
+                return Severity.HIGH;
+            case MAJOR:
+                return Severity.MEDIUM;
+            case MINOR:
+                return Severity.LOW;
+            case INFO:
+            default:
+                return Severity.INFO;
+        }
     }
 }

@@ -1,0 +1,6 @@
+<p>Mobile shared preferences (<code>SharedPreferences</code> / <code>NSUserDefaults</code>) store data in clear text on the device. Sensitive data such as tokens, passwords or personal information stored there can be read by anyone with access to the device or a backup.</p>
+<h2>Ask Yourself Whether</h2>
+<ul><li>The stored value is a credential, token, or personal data.</li></ul>
+<h2>Recommended Secure Coding Practices</h2>
+<ul><li>Use <code>flutter_secure_storage</code>, which relies on the iOS Keychain and Android EncryptedSharedPreferences/Keystore.</li>
+<li>Whenever possible, avoid persisting sensitive data on the device at all.</li></ul>

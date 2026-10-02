@@ -1,0 +1,5 @@
+<p>Logging sensitive data such as credentials, tokens or personal information can leak it: logs are often stored in clear text, collected by crash reporters, or shipped to third-party services.</p>
+<h2>Ask Yourself Whether</h2>
+<ul><li>The logged value is a credential, token, or personal data.</li></ul>
+<h2>Recommended Secure Coding Practices</h2>
+<ul><li>Never log secrets. Redact sensitive fields before logging, and disable verbose logging in release builds.</li></ul>

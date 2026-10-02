@@ -53,7 +53,9 @@ public class CustomTreeVisitorTest {
 
             @Override
             public void fillContext(SensorContext context, AntlrContext antlrContext) {
-                assertThat(antlrContext.getTokens().length).isEqualTo(371);
+                // '[]', '>>' and similar are now lexed as separate tokens so
+                // empty lists and nested generics parse correctly.
+                assertThat(antlrContext.getTokens().length).isEqualTo(375);
             }
         });
         AntlrContext antlrContext = AntlrUtils.getRequest(IOUtils.toString(this.getClass().getResourceAsStream("/dart/main.dart"), "UTF-8"));

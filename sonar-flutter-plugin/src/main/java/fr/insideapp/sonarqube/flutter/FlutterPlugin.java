@@ -21,10 +21,13 @@ import fr.insideapp.sonarqube.dart.lang.Dart;
 import fr.insideapp.sonarqube.dart.lang.DartSensor;
 import fr.insideapp.sonarqube.dart.lang.PubSpecSensor;
 import fr.insideapp.sonarqube.dart.lang.issues.DartProfile;
+import fr.insideapp.sonarqube.dart.lang.issues.DartLanguageRulesDefinition;
 import fr.insideapp.sonarqube.dart.lang.issues.dartanalyzer.executable.AnalyzerExecutable;
 import fr.insideapp.sonarqube.dart.lang.issues.dartanalyzer.AnalyzerOutput;
 import fr.insideapp.sonarqube.dart.lang.issues.dartanalyzer.DartAnalyzerRulesDefinition;
 import fr.insideapp.sonarqube.dart.lang.issues.dartanalyzer.DartAnalyzerSensor;
+import fr.insideapp.sonarqube.dart.lang.issues.security.DartSecurityRulesDefinition;
+import fr.insideapp.sonarqube.dart.lang.issues.security.DartSecuritySensor;
 import fr.insideapp.sonarqube.flutter.coverage.FlutterCoverageSensor;
 import fr.insideapp.sonarqube.flutter.tests.FlutterTestSensor;
 import org.sonar.api.Plugin;
@@ -68,6 +71,12 @@ public class FlutterPlugin implements Plugin {
 
         // dartanalyzer Sensor
         context.addExtensions(DartAnalyzerSensor.class, DartAnalyzerRulesDefinition.class);
+
+        // Security hotspots (plugin-native, independent from dartanalyzer)
+        context.addExtensions(DartSecuritySensor.class, DartSecurityRulesDefinition.class);
+
+        // Plugin-native language rules (cognitive complexity threshold, ...)
+        context.addExtension(DartLanguageRulesDefinition.class);
 
         context.addExtension(
                 PropertyDefinition.builder(FLUTTER_TESTS_REPORT_PATH_KEY)

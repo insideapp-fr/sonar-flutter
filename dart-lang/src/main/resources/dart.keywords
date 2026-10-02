@@ -1,8 +1,10 @@
+Function
 abstract
 as
 assert
 async
 await
+base
 break
 case
 catch
@@ -25,7 +27,6 @@ false
 final
 finally
 for
-Function
 get
 hide
 if
@@ -50,6 +51,7 @@ patch
 required
 rethrow
 return
+sealed
 set
 show
 source
@@ -64,6 +66,7 @@ try
 typedef
 var
 void
+when
 while
 with
 yield

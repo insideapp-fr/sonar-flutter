@@ -28,8 +28,8 @@ import org.sonar.api.batch.sensor.Sensor;
 import org.sonar.api.batch.sensor.SensorContext;
 import org.sonar.api.batch.sensor.SensorDescriptor;
 import org.sonar.api.rule.RuleKey;
-import org.sonar.api.utils.log.Logger;
-import org.sonar.api.utils.log.Loggers;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import javax.annotation.ParametersAreNonnullByDefault;
 import java.io.File;
@@ -41,7 +41,7 @@ import java.util.Objects;
 import static java.util.Arrays.asList;
 
 public class DartAnalyzerSensor implements Sensor {
-    private static final Logger LOGGER = Loggers.get(DartAnalyzerSensor.class);
+    private static final Logger LOGGER = LoggerFactory.getLogger(DartAnalyzerSensor.class);
 
     public static final String ANALYZER_MODE = "sonar.dart.analyzer.mode";
     public static final List<AnalyzerExecutable.Mode> ANALYZER_MODE_OPTIONS = asList(AnalyzerExecutable.Mode.values());
@@ -75,14 +75,31 @@ public class DartAnalyzerSensor implements Sensor {
 
             final List<DartAnalyzerReportIssue> issues = parser.parse(output.getContent());
 
+            ensureUsableOutput(output, issues.size());
+
             LOGGER.info("Recording {} issues", issues.size());
 
             recordIssues(sensorContext, issues);
         } catch (IOException e) {
             LOGGER.error("Analysis failed", e);
+            throw new IllegalStateException("Dart analyzer execution failed, see the log above for details", e);
         }
+    }
 
-
+    /**
+     * dart/flutter analyze exit with a non-zero status when they find issues,
+     * which is a successful analysis. A non-zero exit status combined with an
+     * output no issue could be parsed from means the analyzer itself failed
+     * (e.g. an implicit 'pub get' failure) and must not be reported as a
+     * successful analysis with zero issues.
+     */
+    static void ensureUsableOutput(AnalyzerOutput output, int issueCount) {
+        if (issueCount == 0 && output.getExitValue() != 0) {
+            throw new IllegalStateException(String.format(
+                    "Analyzer exited with status %d and no issue could be parsed from its output. " +
+                    "The analyzer likely failed to run. Output was:%n%s",
+                    output.getExitValue(), output.getContent()));
+        }
     }
 
     private void recordIssues(SensorContext sensorContext, List<DartAnalyzerReportIssue> issues) {
@@ -95,9 +112,9 @@ public class DartAnalyzerSensor implements Sensor {
                 LOGGER.warn("File not included in SonarQube {}", file.getAbsoluteFile());
             } else {
                 final InputFile inputFile = Objects.requireNonNull(sensorContext.fileSystem().inputFile(fp));
-                sensorContext.newIssue()
-                        .forRule(RuleKey.of(DartAnalyzerRulesDefinition.REPOSITORY_KEY, issue.getRuleId().toLowerCase(Locale.ROOT)))
-                        .at(issue.toNewIssueLocationFor(inputFile))
+                final org.sonar.api.batch.sensor.issue.NewIssue newIssue = sensorContext.newIssue()
+                        .forRule(RuleKey.of(DartAnalyzerRulesDefinition.REPOSITORY_KEY, issue.getRuleId().toLowerCase(Locale.ROOT)));
+                newIssue.at(issue.toNewIssueLocationFor(newIssue, inputFile))
                         .save();
             }
         });

@@ -18,8 +18,8 @@
 package fr.insideapp.sonarqube.dart.lang;
 
 import org.sonar.api.batch.sensor.SensorContext;
-import org.sonar.api.utils.log.Logger;
-import org.sonar.api.utils.log.Loggers;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.yaml.snakeyaml.Yaml;
 
 import javax.annotation.Nonnull;
@@ -32,7 +32,7 @@ import java.nio.file.Path;
 import java.util.Map;
 
 public class PubSpecParser {
-    private static final Logger LOGGER = Loggers.get(PubSpecParser.class);
+    private static final Logger LOGGER = LoggerFactory.getLogger(PubSpecParser.class);
 
     private PubSpecParser() {
     }

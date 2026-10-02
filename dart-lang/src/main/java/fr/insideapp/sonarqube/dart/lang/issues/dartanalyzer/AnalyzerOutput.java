@@ -35,10 +35,17 @@ public class AnalyzerOutput {
 
     private final String content;
 
+    private final int exitValue;
+
     public AnalyzerOutput(Mode mode, AnalyzerExecutable.Mode analyzerMode, String content) {
+        this(mode, analyzerMode, content, 0);
+    }
+
+    public AnalyzerOutput(Mode mode, AnalyzerExecutable.Mode analyzerMode, String content, int exitValue) {
         this.mode = mode;
         this.analyzerMode = analyzerMode;
         this.content = content;
+        this.exitValue = exitValue;
     }
 
     public Mode getMode() {
@@ -51,5 +58,9 @@ public class AnalyzerOutput {
 
     public String getContent() {
         return content;
+    }
+
+    public int getExitValue() {
+        return exitValue;
     }
 }

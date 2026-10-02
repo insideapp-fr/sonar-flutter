@@ -17,16 +17,35 @@ A plugin to enable analysis of Dart and Flutter projects into SonarQube.
 
 ## Features
 
-| Feature    | Supported                                                       |
-|------------|-----------------------------------------------------------------|
-| Size       | YES                                                             |
-| Issues     | YES ([dartanalyzer](https://dart.dev/tools/dartanalyzer) rules) |
-| Tests      | YES                                                             |
-| Coverage   | YES                                                             |
-| Complexity | YES                                                             |
-| Syntax     | YES                                                             |
+| Feature    | Supported                                                                          |
+|------------|------------------------------------------------------------------------------------|
+| Size       | YES (lines, classes, functions, statements)                                        |
+| Issues     | YES ([dart analyze](https://dart.dev/tools/dart-analyze) rules)                    |
+| Security   | YES (built-in Dart security rules, see below)                                      |
+| Tests      | YES                                                                                |
+| Coverage   | YES                                                                                |
+| Complexity | YES (cyclomatic and cognitive)                                                     |
+| Syntax     | YES (Dart 3: records, patterns, class modifiers, ...)                              |
 
-The plugin is compatible with sonarQube 7.9+.
+The plugin requires Java 17+ and a SonarQube version supporting Plugin API 13.4+.
+
+### Security rules
+
+The `Dart Security` repository (`dartsecurity`) adds the following rules, mapped to CWE, OWASP Top 10 2021 and OWASP Mobile Top 10 2024:
+
+| Rule                     | Type          | CWE     |
+|--------------------------|---------------|---------|
+| Hardcoded credentials    | Hotspot       | CWE-798 |
+| Hardcoded encryption key | Hotspot       | CWE-321 |
+| Cleartext HTTP           | Hotspot       | CWE-319 |
+| Weak hash algorithm      | Hotspot       | CWE-328 |
+| Insecure random          | Hotspot       | CWE-330 |
+| Bad certificate trust    | Hotspot       | CWE-295 |
+| Insecure storage (SharedPreferences) | Hotspot | CWE-312 |
+| WebView JavaScript enabled | Hotspot     | CWE-79  |
+| Sensitive data in logs   | Hotspot       | CWE-532 |
+| SQL injection            | Vulnerability | CWE-89  |
+| Command injection        | Vulnerability | CWE-78  |
 
 ## Download
 

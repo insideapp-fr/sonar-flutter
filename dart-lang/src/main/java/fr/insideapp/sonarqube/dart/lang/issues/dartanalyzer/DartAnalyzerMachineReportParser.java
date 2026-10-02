@@ -35,7 +35,7 @@ public class DartAnalyzerMachineReportParser implements DartAnalyzerReportParser
 
     @Override
     public List<DartAnalyzerReportIssue> parse(String input) {
-        return Arrays.stream(input.split(System.getProperty("line.separator")))
+        return Arrays.stream(input.split("\\R"))
                 .map(PATTERN::matcher)
                 .filter(Matcher::matches)
                 .map(matcher -> {

@@ -20,15 +20,15 @@ package fr.insideapp.sonarqube.dart.lang.issues;
 import fr.insideapp.sonarqube.dart.lang.Dart;
 import fr.insideapp.sonarqube.dart.lang.issues.dartanalyzer.DartAnalyzerRulesDefinition;
 import org.sonar.api.server.profile.BuiltInQualityProfilesDefinition;
-import org.sonar.api.utils.log.Logger;
-import org.sonar.api.utils.log.Loggers;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.util.List;
 
 public class DartProfile implements BuiltInQualityProfilesDefinition {
 
-    private static final Logger LOGGER = Loggers.get(DartProfile.class);
+    private static final Logger LOGGER = LoggerFactory.getLogger(DartProfile.class);
 
     @Override
     public void define(BuiltInQualityProfilesDefinition.Context context) {
@@ -54,6 +54,18 @@ public class DartProfile implements BuiltInQualityProfilesDefinition {
         } catch (IOException e) {
             LOGGER.error("Failed to load dartanalyzer rules", e);
         }
+
+        // Security hotspots and vulnerabilities (plugin-native)
+        final String securityRepo = fr.insideapp.sonarqube.dart.lang.issues.security.DartSecurityRulesDefinition.REPOSITORY_KEY;
+        for (String securityRuleKey : fr.insideapp.sonarqube.dart.lang.issues.security.DartSecurityScanner.RULE_KEYS) {
+            profile.activateRule(securityRepo, securityRuleKey);
+        }
+        for (String vulnRuleKey : fr.insideapp.sonarqube.dart.lang.issues.security.DartSecurityScanner.VULNERABILITY_RULE_KEYS) {
+            profile.activateRule(securityRepo, vulnRuleKey);
+        }
+
+        // Plugin-native language rules
+        profile.activateRule(DartLanguageRulesDefinition.REPOSITORY_KEY, DartLanguageRulesDefinition.COGNITIVE_COMPLEXITY);
 
         profile.done();
     }
