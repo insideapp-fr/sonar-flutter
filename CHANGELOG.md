@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+#### Bug Fixes
+
+- Analysis failed on recent SonarQube versions (tested on Community Build 26.9) with `NoClassDefFoundError: org/sonar/api/batch/sensor/issue/internal/DefaultIssueLocation`: issue locations are now created through the public `NewIssue.newLocation()` API
+- Default `analysis_options.yaml` produced dozens of analyzer warnings on the options file itself with recent Dart SDKs (logged as `File not included in SonarQube .../analysis_options.yaml`): compiler diagnostic codes, removed lints and duplicates are no longer listed as lint rules, and analyzer warnings about deprecated, removed, unknown or incompatible lints are ignored for this file
+
 ## 0.5.2
 
 #### Breaking
