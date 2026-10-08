@@ -27,6 +27,7 @@ import org.sonar.api.batch.fs.InputFile.Type;
 import org.sonar.api.batch.sensor.Sensor;
 import org.sonar.api.batch.sensor.SensorContext;
 import org.sonar.api.batch.sensor.SensorDescriptor;
+import org.sonar.api.batch.sensor.issue.NewIssue;
 import org.sonar.api.rule.RuleKey;
 import org.sonar.api.utils.log.Logger;
 import org.sonar.api.utils.log.Loggers;
@@ -95,9 +96,9 @@ public class DartAnalyzerSensor implements Sensor {
                 LOGGER.warn("File not included in SonarQube {}", file.getAbsoluteFile());
             } else {
                 final InputFile inputFile = Objects.requireNonNull(sensorContext.fileSystem().inputFile(fp));
-                sensorContext.newIssue()
-                        .forRule(RuleKey.of(DartAnalyzerRulesDefinition.REPOSITORY_KEY, issue.getRuleId().toLowerCase(Locale.ROOT)))
-                        .at(issue.toNewIssueLocationFor(inputFile))
+                final NewIssue newIssue = sensorContext.newIssue();
+                newIssue.forRule(RuleKey.of(DartAnalyzerRulesDefinition.REPOSITORY_KEY, issue.getRuleId().toLowerCase(Locale.ROOT)))
+                        .at(issue.toNewIssueLocationFor(newIssue.newLocation(), inputFile))
                         .save();
             }
         });

@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+#### Bug Fixes
+
+- Analysis failed on recent SonarQube versions (tested on Community Build 26.9) with `NoClassDefFoundError: org/sonar/api/batch/sensor/issue/internal/DefaultIssueLocation`: issue locations are now created through the public `NewIssue.newLocation()` API
+
 ## 0.5.2
 
 #### Breaking
